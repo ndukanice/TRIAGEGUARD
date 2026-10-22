@@ -1,0 +1,37 @@
+[
+  { "id": "cp-1", "expected_protocol": "chest-pain", "expected_label": "Emergent",
+    "patient": { "complaint": "Crushing pressure in the centre of the chest spreading to the left arm, sweating heavily", "history": "Smoker, hypertension", "onset": "40 minutes ago", "vitals": { "bp_sys": "150", "hr": "104", "o2": "95" } } },
+  { "id": "cp-2", "expected_protocol": "chest-pain", "expected_label": "Immediate",
+    "patient": { "complaint": "Chest pain, now confused and clammy, very weak pulse", "history": "Prior MI", "onset": "1 hour ago", "vitals": { "bp_sys": "78", "hr": "128", "o2": "88" } } },
+  { "id": "cp-3", "expected_protocol": "chest-pain", "expected_label": "Non-urgent",
+    "patient": { "complaint": "Sharp pain on the left side of the chest that is tender when pressed, after moving furniture", "history": "None", "onset": "2 days ago", "vitals": { "bp_sys": "124", "hr": "76", "o2": "99" } } },
+  { "id": "cp-4", "expected_protocol": "chest-pain", "expected_label": "Emergent",
+    "patient": { "complaint": "Chest pain with shortness of breath", "history": "Diabetes", "onset": "30 minutes ago", "vitals": { "bp_sys": "138", "hr": "98", "o2": "94" } } },
+
+  { "id": "rs-1", "expected_protocol": "respiratory-distress", "expected_label": "Emergent",
+    "patient": { "complaint": "Asthma attack, wheezing, cannot finish sentences, inhaler not helping", "history": "Asthma", "onset": "1 hour ago", "vitals": { "bp_sys": "130", "hr": "118", "o2": "88" } } },
+  { "id": "rs-2", "expected_protocol": "respiratory-distress", "expected_label": "Immediate",
+    "patient": { "complaint": "Choking, unable to breathe or speak, lips turning blue", "history": "None", "onset": "5 minutes ago", "vitals": { "bp_sys": "110", "hr": "135", "o2": "79" } } },
+  { "id": "rs-3", "expected_protocol": "respiratory-distress", "expected_label": "Non-urgent",
+    "patient": { "complaint": "Runny nose, sore throat and a mild cough", "history": "None", "onset": "3 days ago", "vitals": { "bp_sys": "118", "hr": "80", "o2": "98" } } },
+  { "id": "rs-4", "expected_protocol": "respiratory-distress", "expected_label": "Urgent",
+    "patient": { "complaint": "Mild wheezing and a bit more breathless than usual", "history": "COPD, stable on inhalers", "onset": "Since yesterday", "vitals": { "bp_sys": "128", "hr": "88", "o2": "95" } } },
+
+  { "id": "ab-1", "expected_protocol": "abdominal-pain", "expected_label": "Urgent",
+    "patient": { "complaint": "Pain in the lower right abdomen with a low-grade fever and nausea", "history": "None", "onset": "12 hours ago", "vitals": { "bp_sys": "122", "hr": "92", "o2": "98" } } },
+  { "id": "ab-2", "expected_protocol": "abdominal-pain", "expected_label": "Immediate",
+    "patient": { "complaint": "Vomiting blood, severe abdominal pain, dizzy and pale", "history": "Alcohol use", "onset": "2 hours ago", "vitals": { "bp_sys": "82", "hr": "124", "o2": "96" } } },
+  { "id": "ab-3", "expected_protocol": "abdominal-pain", "expected_label": "Non-urgent",
+    "patient": { "complaint": "Mild cramping and constipation, no vomiting", "history": "None", "onset": "4 days ago", "vitals": { "bp_sys": "120", "hr": "72", "o2": "99" } } },
+  { "id": "ab-4", "expected_protocol": "abdominal-pain", "expected_label": "Emergent",
+    "patient": { "complaint": "Severe lower abdominal pain with vaginal spotting, missed period", "history": "28 year old female", "onset": "3 hours ago", "vitals": { "bp_sys": "112", "hr": "102", "o2": "98" } } },
+
+  { "id": "st-1", "expected_protocol": "stroke-assessment", "expected_label": "Emergent",
+    "patient": { "complaint": "Sudden facial droop on one side and slurred speech", "history": "Atrial fibrillation", "onset": "45 minutes ago", "vitals": { "bp_sys": "176", "hr": "88", "o2": "97" } } },
+  { "id": "st-2", "expected_protocol": "stroke-assessment", "expected_label": "Emergent",
+    "patient": { "complaint": "Worst headache of my life, came on suddenly", "history": "None", "onset": "20 minutes ago", "vitals": { "bp_sys": "160", "hr": "84", "o2": "98" } } },
+  { "id": "st-3", "expected_protocol": "stroke-assessment", "expected_label": "Urgent",
+    "patient": { "complaint": "Arm went numb and weak for ten minutes this morning, now completely back to normal", "history": "Hypertension", "onset": "6 hours ago", "vitals": { "bp_sys": "150", "hr": "78", "o2": "98" } } },
+  { "id": "st-4", "expected_protocol": "stroke-assessment", "expected_label": "Non-urgent",
+    "patient": { "complaint": "Usual tension headache, same pattern as always", "history": "Chronic headaches", "onset": "This morning", "vitals": { "bp_sys": "124", "hr": "70", "o2": "99" } } }
+]

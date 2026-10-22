@@ -58,6 +58,20 @@ export default function IntakeForm({ onSubmit, isLoading }: Props) {
         onset: '1 hour ago',
         duration: 'Increasing severity',
         vitals: { bp_sys: '148', bp_dia: '94', hr: '108', temp: '36.8', o2: '94' }
+      },
+      'ASTHMA ATTACK': {
+        complaint: 'Severe wheezing, unable to finish sentences, reliever inhaler not helping.',
+        history: 'Asthma since childhood.',
+        onset: '1 hour ago',
+        duration: 'Worsening',
+        vitals: { bp_sys: '132', bp_dia: '84', hr: '118', temp: '37.0', o2: '88' }
+      },
+      'ABDOMINAL PAIN': {
+        complaint: 'Pain in the lower right abdomen with nausea and a low-grade fever.',
+        history: 'No significant history.',
+        onset: '12 hours ago',
+        duration: 'Constant, getting worse',
+        vitals: { bp_sys: '122', bp_dia: '78', hr: '94', temp: '38.1', o2: '98' }
       }
     };
 
@@ -86,8 +100,8 @@ export default function IntakeForm({ onSubmit, isLoading }: Props) {
         <span className="text-[10px] uppercase font-black tracking-widest text-blue-500 flex items-center gap-2">
           <MousePointer2 className="w-3 h-3" /> Quick Load Examples
         </span>
-        <div className="flex gap-2">
-          {['POTENTIAL STROKE', 'ACUTE CHEST PAIN', 'PEDIATRIC FEVER'].map(tag => (
+        <div className="flex flex-wrap gap-2">
+          {['POTENTIAL STROKE', 'ACUTE CHEST PAIN', 'ASTHMA ATTACK', 'ABDOMINAL PAIN'].map(tag => (
             <button
               key={tag}
               type="button"

@@ -1,6 +1,0 @@
-{
-  "name": "Clinical Triage Copilot",
-  "description": "Safety-grounded RAG agent for hospital triage. Ingests vitals and symptoms to provide evidence-based prioritization recommendations with medical guideline citations.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

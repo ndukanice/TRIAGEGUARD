@@ -1,158 +1,87 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
-import cors from "cors";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { CLINICAL_PROTOCOLS } from "./src/data/protocols.ts";
-import { z } from "zod";
+import { createEmbedder } from "./server/rag/embed.ts";
+import { loadIndex, type VectorIndex } from "./server/rag/retriever.ts";
+import { callLLM } from "./server/llm.ts";
+import { patientDataSchema, runTriage } from "./server/triage.ts";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const app = express();
-app.use(express.json());
-app.use(cors());
+app.use(express.json({ limit: "50kb" }));
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
+const EVAL_RESULTS_PATH = "eval/results.json";
 
-// Zod schema for structured triage output as per architecture
-const triageResultSchema = z.object({
-  triage_label: z.enum(["Immediate", "Emergent", "Urgent", "Non-urgent"]),
-  red_flags: z.array(z.string()),
-  rationale: z.string(),
-  citations: z.array(z.object({
-    title: z.string(),
-    passage_id: z.string(),
-    snippet: z.string()
-  })),
-  missing_info: z.array(z.string()),
-  recommended_next_steps: z.array(z.string()),
-  safety_verification: z.string()
+// Load the vector index once at startup. If it is missing the UI still loads
+// and the triage endpoint explains how to build it.
+let index: VectorIndex | null = null;
+try {
+  index = loadIndex();
+  console.log(`Loaded vector index: ${index.passages.length} passages (${index.model})`);
+} catch (error) {
+  console.warn(String(error));
+}
+
+app.post("/api/triage", async (req, res) => {
+  const parsed = patientDataSchema.safeParse(req.body?.patientData);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") });
+  }
+  if (!index) {
+    return res.status(503).json({ error: 'Vector index not built. Run "npm run index".' });
+  }
+
+  try {
+    const { embed, model } = createEmbedder();
+    if (model !== index.model) {
+      return res.status(503).json({
+        error: `Index was built with ${index.model} but the server is using ${model}. Run "npm run index" again.`,
+      });
+    }
+    const result = await runTriage(parsed.data, { index, embed, llm: callLLM });
+    res.json(result);
+  } catch (error) {
+    console.error("Triage error:", error);
+    res.status(502).json({ error: "Failed to generate a triage recommendation. Please try again." });
+  }
 });
 
-async function callOpenRouter(messages: any[], responseSchema?: any) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is missing");
-  }
-
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://ai.studio/build",
-      "X-Title": "TriageGuard Copilot",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "gpt-oss-120b",
-      messages,
-      response_format: responseSchema ? { type: "json_object" } : undefined,
-      temperature: 0.1
-    })
+// Real facts about the knowledge base, shown in the sidebar.
+app.get("/api/corpus", (_req, res) => {
+  res.json({
+    protocols: CLINICAL_PROTOCOLS.map((p) => p.title),
+    passages: index?.passages.length ?? 0,
+    embedding_model: index?.model ?? null,
+    indexed_at: index?.createdAt ?? null,
   });
+});
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`OpenRouter Error: ${response.status} - ${errorBody}`);
+// Results of the last `npm run eval`, or 404 if it has never been run.
+app.get("/api/eval", (_req, res) => {
+  if (!fs.existsSync(EVAL_RESULTS_PATH)) {
+    return res.status(404).json({ error: 'No evaluation results yet. Run "npm run eval".' });
   }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
-
-async function callLLMWithFallback(messages: any[], responseSchema?: any) {
-  try {
-    console.log("Attempting OpenRouter call...");
-    return await callOpenRouter(messages, responseSchema);
-  } catch (error) {
-    console.error("OpenRouter failed:", error);
-    throw new Error(`LLM provider failed: ${error}`);
-  }
-}
-
-// API Routes
-app.post("/api/triage", async (req, res) => {
-  try {
-    const { patientData } = req.body;
-    if (!patientData) {
-      return res.status(400).json({ error: "Missing patient data" });
-    }
-
-    // 1. Normalization & Category Extraction
-    const extractionContent = await callLLMWithFallback([
-      {
-        role: "system",
-        content: `Normalize patient triage data into JSON.
-        Required Fields: category (pick one: ${CLINICAL_PROTOCOLS.map(p => p.id).join(", ")}), summary, vitals {sbp, hr, o2}.`
-      },
-      {
-        role: "user",
-        content: `Patient Data: ${JSON.stringify(patientData)}`
-      }
-    ], true);
-
-    const extraction = JSON.parse(extractionContent || "{}");
-    const protocol = CLINICAL_PROTOCOLS.find(p => p.id === extraction.category) || CLINICAL_PROTOCOLS[0];
-
-    // 2. Triage Reasoning + Safety Verification (multistep RAG)
-    const triageContent = await callLLMWithFallback([
-      {
-        role: "system",
-        content: `You are a Safety-Grounded Clinical RAG Agent. Output strictly valid JSON.
-        
-        CORE INSTRUCTIONS:
-        1. ANALYZE: Check vitals against thresholds (especially SpO2 < ${protocol.vitalsThresholds.criticalSpO2}% or SBP < ${protocol.vitalsThresholds.criticalSBP}).
-        2. PRIORITIZE: Assign label from [Immediate, Emergent, Urgent, Non-urgent].
-        3. GROUNDING: Every clinical claim MUST cite the protocol.
-        4. VERIFICATION: In 'safety_verification', confirm claims match snippets and no diagnosis made.
-        
-        JSON SCHEMA:
-        {
-          "triage_label": string,
-          "red_flags": string[],
-          "rationale": string,
-          "citations": [{ "title": string, "passage_id": string, "snippet": string }],
-          "missing_info": string[],
-          "recommended_next_steps": string[],
-          "safety_verification": string
-        }`
-      },
-      {
-        role: "user",
-        content: `INTAKE: ${JSON.stringify(patientData)}
-        PROTOCOL: ${JSON.stringify(protocol)}`
-      }
-    ], true);
-
-    const result = JSON.parse(triageContent || "{}");
-    const validated = triageResultSchema.safeParse(result);
-
-    res.json(validated.success ? validated.data : result);
-
-  } catch (error: any) {
-    console.error("Triage Error:", error);
-    res.status(500).json({ error: error.message || "Failed to process triage" });
-  }
+  res.type("json").send(fs.readFileSync(EVAL_RESULTS_PATH, "utf8"));
 });
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Clinical Triage Server running on http://localhost:${PORT}`);
+    console.log(`TriageGuard running on http://localhost:${PORT}`);
   });
 }
 

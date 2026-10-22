@@ -1,21 +1,6 @@
-import { AlertTriangle, BookOpen, ChevronRight, CheckCircle2, ShieldAlert, History, ArrowLeft, MoreHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
-
-interface Citation {
-  title: string;
-  passage_id: string;
-  snippet: string;
-}
-
-interface TriageResult {
-  triage_label: 'Immediate' | 'Emergent' | 'Urgent' | 'Non-urgent';
-  red_flags: string[];
-  rationale: string;
-  citations: Citation[];
-  missing_info: string[];
-  recommended_next_steps: string[];
-  safety_verification: string;
-}
+import type { TriageResult } from '../types.ts';
 
 interface Props {
   result: TriageResult;
@@ -33,7 +18,9 @@ const URGENCY_MAP = {
 export default function TriageDashboard({ result, onReset, intakeData }: Props) {
   const config = URGENCY_MAP[result.triage_label] || URGENCY_MAP['Urgent'];
   const label = result.triage_label in URGENCY_MAP ? result.triage_label : 'Urgent';
-  const severityIcon = config.icon;
+  const SeverityIcon = config.icon;
+  const v = result.verification;
+  const verified = v.has_valid_citation && v.invalid_citation_ids.length === 0;
 
   return (
     <motion.div 
@@ -65,10 +52,6 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
                 <div className="flex flex-col">
                   <span className="text-slate-600 text-[9px] uppercase">SpO2</span>
                   <span className="text-emerald-400">{intakeData?.vitals?.o2 || '--'}%</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-slate-600 text-[9px] uppercase">Case ID</span>
-                  <span className="text-slate-500">#{Math.random().toString(36).substr(2, 5).toUpperCase()}</span>
                 </div>
               </div>
             </div>
@@ -103,10 +86,11 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
               <span className="text-slate-400 font-sans not-italic text-2xl">(Lvl {config.level})</span>
             </h1>
           </div>
-          <div className="text-right flex flex-col items-end">
-            <div className="text-4xl font-mono text-slate-700">00:02:11</div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500">Analysis complete</p>
-          </div>
+          {v.escalated_by_safety_floor && (
+            <div className="max-w-xs p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-300">
+              Escalated from <b>{result.model_label}</b> by the vital-sign safety rule.
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -150,11 +134,13 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
           
           <div className="mt-auto pt-8 border-t border-slate-800/50">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] text-slate-500 uppercase italic">Verification Loop Status</p>
-              <span className="text-sm font-mono text-emerald-400">PASSED</span>
+              <p className="text-[11px] text-slate-500 uppercase italic">Citation check (done in code)</p>
+              <span className={`text-sm font-mono ${verified ? 'text-emerald-400' : 'text-amber-400'}`}>{verified ? 'PASSED' : 'REVIEW'}</span>
             </div>
-            <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg text-[10px] text-emerald-500 font-mono">
-              Grounding: {result.safety_verification}
+            <div className="p-3 bg-slate-800/40 border border-slate-700/40 rounded-lg text-[10px] text-slate-400 font-mono space-y-1">
+              <div>{result.citations.length} of {v.citations_checked} citations matched a retrieved passage</div>
+              {v.invalid_citation_ids.length > 0 && <div className="text-amber-400">Dropped unknown ids: {v.invalid_citation_ids.join(', ')}</div>}
+              <div>{v.vital_sign_flags} critical vital sign(s) detected by rule</div>
             </div>
           </div>
         </div>
@@ -163,7 +149,7 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
       {/* Right Column: Protocols & Evidence */}
       <aside className="w-full lg:w-80 border-l border-[#1E293B] bg-[#0F1115] flex flex-col p-6 overflow-y-auto shrink-0">
           <h2 className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mb-6 flex items-center gap-2">
-            <severityIcon className="w-3.5 h-3.5" /> Retrieved Guideline Snippets
+            <SeverityIcon className="w-3.5 h-3.5" /> Cited Passages
           </h2>
         <div className="space-y-4">
           {result.citations.map((cite, idx) => (
@@ -177,6 +163,18 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
         </div>
 
         <div className="mt-8 p-5 border border-slate-800 bg-[#111827] rounded-2xl">
+          <p className="text-[10px] uppercase text-slate-500 font-bold mb-3">Retrieval (top {result.retrieved.length}, cosine similarity)</p>
+          <ul className="text-[11px] text-slate-400 space-y-1.5 font-mono">
+            {result.retrieved.map((p) => (
+              <li key={p.id} className="flex justify-between gap-2">
+                <span className="truncate" title={p.id}>{p.id}</span>
+                <span className="text-slate-500">{p.score.toFixed(3)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-4 p-5 border border-slate-800 bg-[#111827] rounded-2xl">
           <p className="text-[10px] uppercase text-amber-500 font-bold mb-3 flex items-center gap-2">
             <ShieldAlert className="w-3.5 h-3.5" />
             Missing Information
@@ -190,14 +188,6 @@ export default function TriageDashboard({ result, onReset, intakeData }: Props) 
           </ul>
         </div>
         
-        <div className="mt-auto pt-6 flex flex-col gap-2">
-          <button className="w-full py-3 bg-emerald-600 text-white text-[10px] uppercase font-black tracking-widest hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20">
-            Approve & Log Case
-          </button>
-          <button className="w-full py-3 border border-slate-800 text-slate-400 text-[10px] uppercase font-bold tracking-widest hover:bg-slate-800 transition-colors">
-            Override Priority
-          </button>
-        </div>
       </aside>
     </motion.div>
   );
